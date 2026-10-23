@@ -11,11 +11,9 @@ const blank = (): Saved => ({ solved: false, attempts: 0, hints: [], revealed: {
 
 export function Game({ challenge }: { challenge: Challenge }) {
   const key = `enigmads:${challenge.id}`
-  const [saved, setSaved] = useState<Saved>(() => {
-    if (typeof window === 'undefined') return blank()
-    try { return JSON.parse(localStorage.getItem(key) ?? 'null') ?? blank() } catch { return blank() }
-  })
-  const [letters, setLetters] = useState<string[]>(() => Array.from({ length: challenge.answerLength }, (_, index) => saved.revealed[index] ?? ''))
+  const [saved, setSaved] = useState<Saved>(blank)
+  const [letters, setLetters] = useState<string[]>(() => Array.from({ length: challenge.answerLength }, () => ''))
+  const [hydrated, setHydrated] = useState(false)
   const [hintData, setHintData] = useState<HintData>({})
   const [message, setMessage] = useState('')
   const [modal, setModal] = useState(false)
@@ -25,7 +23,19 @@ export function Game({ challenge }: { challenge: Challenge }) {
   const refs = useRef<Array<HTMLInputElement | null>>([])
   const helpCount = saved.hints.length + Object.keys(saved.revealed).length
 
-  useEffect(() => { localStorage.setItem(key, JSON.stringify(saved)) }, [key, saved])
+  useEffect(() => {
+    let restored = blank()
+    try { restored = JSON.parse(localStorage.getItem(key) ?? 'null') ?? blank() } catch { /* Se usa un progreso vacío. */ }
+    setSaved(restored)
+    setLetters(restored.solved && restored.answer
+      ? normalizeAnswer(restored.answer).split('')
+      : Array.from({ length: challenge.answerLength }, (_, index) => restored.revealed[index] ?? ''))
+    setAnswer(restored.answer ?? '')
+    setExplanation(restored.explanation ?? '')
+    setHydrated(true)
+  }, [challenge.answerLength, key])
+
+  useEffect(() => { if (hydrated) localStorage.setItem(key, JSON.stringify(saved)) }, [hydrated, key, saved])
 
   const submit = async (candidate = letters) => {
     if (candidate.some((value) => !value) || saved.solved) return
